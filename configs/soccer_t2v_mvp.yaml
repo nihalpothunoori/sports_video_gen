@@ -1,0 +1,52 @@
+data:
+  train_manifest: /home/nihal/Documents/cachehacks/dataset_wan/manifest_train.jsonl
+  val_manifest: /home/nihal/Documents/cachehacks/dataset_wan/manifest_val.jsonl
+  frames: 16
+  height: 256
+  width: 448
+  fps: 16
+  num_workers: 4
+  train_fraction: 1.0
+  val_fraction: 1.0
+
+model:
+  latent_channels: 16
+  vae_base_channels: 64
+  text_vocab_size: 8192
+  text_max_len: 64
+  text_dim: 256
+  dit_dim: 512
+  dit_depth: 8
+  dit_heads: 8
+  patch_size_t: 1
+  patch_size_h: 2
+  patch_size_w: 2
+
+train:
+  output_dir: /home/nihal/Documents/cachehacks/checkpoints/soccer_t2v_mvp
+  batch_size: 1
+  grad_accum_steps: 8
+  learning_rate: 0.00005
+  weight_decay: 0.001
+  max_steps: 200000
+  val_every: 500
+  save_every: 500
+  precision: bf16
+  grad_clip_norm: 1.0
+  seed: 42
+  num_inference_steps: 30
+  cfg_scale: 4.0
+  vae_checkpoint: ""
+  use_mu_target: true
+  latent_scale: 1.0
+  kl_base_weight: 0.000003
+  kl_start_weight: 0.0
+  kl_warmup_steps: 3000
+  kl_schedule: sigmoid
+  kl_sigmoid_steepness: 10.0
+  lr_scheduler: cosine
+  min_lr_ratio: 0.1
+  encoder_lr_scale: 0.5
+  motion_focus_weight: 30.0
+  perceptual_weight: 1.0
+  perceptual_num_frames: 4
