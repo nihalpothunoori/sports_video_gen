@@ -15,6 +15,7 @@ This repo contains a compact Wan-style video generation pipeline built with PyTo
 ## Data pipeline (SoccerTrack v2)
 
 We use the pre-labeled SoccerTrack v2 dataset from Hugging Face as the source corpus and prepare model-ready clips locally in `soccertrack_data/`.
+It's like a hundred gigabytes of data so I haven't included it, but the format of the clips are below.
 
 Expected prep flow:
 
