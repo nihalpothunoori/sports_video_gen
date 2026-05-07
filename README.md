@@ -8,6 +8,10 @@ This repo contains a compact Wan-style video generation pipeline built with PyTo
 - NLP prompt mapper that normalizes free text into SoccerTrack v2 action vocabulary
 - Train/infer scripts wired for SoccerTrack data workflows
 
+## Demo video
+
+- [Project demo on YouTube](https://www.youtube.com/watch?v=ES00rbzp4JY)
+
 ## Data pipeline (SoccerTrack v2)
 
 We use the pre-labeled SoccerTrack v2 dataset from Hugging Face as the source corpus and prepare model-ready clips locally in `soccertrack_data/`.
