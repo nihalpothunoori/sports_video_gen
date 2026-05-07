@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import random
 from pathlib import Path
 from typing import Optional
 
 import torch
 
+from nlp_mapper import SoccerTrackPromptMapper
 from wan_model import (
     DDPMSchedule,
     FrozenT5TextEncoder,
@@ -45,6 +47,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompt", type=str, default=None)
     parser.add_argument("--data_dir", type=Path, default=root / "soccertrack_data")
     parser.add_argument("--prompt_from_data", action="store_true")
+    parser.add_argument("--disable_prompt_mapper", action="store_true")
+    parser.add_argument("--disable_llm_mapper", action="store_true")
+    parser.add_argument("--llm_model", type=str, default="gpt-4o-mini")
+    parser.add_argument("--llm_api_base_url", type=str, default="https://api.openai.com/v1")
+    parser.add_argument("--llm_api_key_env", type=str, default="OPENAI_API_KEY")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output", type=Path, default=root / "sample.mp4")
     parser.add_argument("--frames", type=int, default=16)
@@ -108,6 +115,21 @@ def main() -> None:
         prompt = prompt_from_soccertrack(args.data_dir, args.seed)
     else:
         prompt = args.prompt
+
+    if not args.disable_prompt_mapper:
+        mapper = SoccerTrackPromptMapper(
+            use_llm=not args.disable_llm_mapper,
+            model=args.llm_model,
+            api_base_url=args.llm_api_base_url,
+            api_key=os.getenv(args.llm_api_key_env),
+        )
+        mapped_prompt, mapped_actions, map_source = mapper.normalize_prompt(prompt)
+        prompt = mapped_prompt
+        print(f"prompt_mapper_source: {map_source}")
+        if mapped_actions:
+            print(f"prompt_mapper_actions: {', '.join(mapped_actions)}")
+        else:
+            print("prompt_mapper_actions: none")
 
     text_dtype = torch.float16 if device.type == "cuda" else torch.float32
     text_encoder = FrozenT5TextEncoder(model_name=args.t5_model, dtype=text_dtype).to(device)

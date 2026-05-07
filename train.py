@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import os
 import random
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset, random_split
 
+from nlp_mapper import SoccerTrackPromptMapper
 from wan_model import (
     DDPMSchedule,
     FrozenT5TextEncoder,
@@ -119,6 +121,7 @@ def validate(
     beta_ramp: KLBetaRamp,
     step: int,
     device: torch.device,
+    prompt_mapper: Optional[SoccerTrackPromptMapper] = None,
 ) -> Tuple[float, float]:
     # Validation runs both objectives: VAE reconstruction and DDPM epsilon prediction.
     vae.eval()
@@ -130,6 +133,8 @@ def validate(
     with torch.no_grad():
         for videos, prompts in loader:
             videos = videos.to(device=device, dtype=torch.float32)
+            if prompt_mapper is not None:
+                prompts = [prompt_mapper.normalize_prompt(p)[0] for p in prompts]
             recon, mu, logvar = vae(videos)
             beta = beta_ramp(step)
             vae_loss, _ = vae_loss_fn(recon, videos, mu, logvar, beta=beta)
@@ -175,6 +180,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--diffusion_steps", type=int, default=1000)
     parser.add_argument("--t5_model", type=str, default="google/t5-v1_1-large")
     parser.add_argument("--save_every", type=int, default=1)
+    parser.add_argument("--normalize_captions", action="store_true")
+    parser.add_argument("--disable_llm_mapper", action="store_true")
+    parser.add_argument("--llm_model", type=str, default="gpt-4o-mini")
+    parser.add_argument("--llm_api_base_url", type=str, default="https://api.openai.com/v1")
+    parser.add_argument("--llm_api_key_env", type=str, default="OPENAI_API_KEY")
     parser.add_argument("--base_channels", type=int, default=64)
     parser.add_argument("--latent_channels", type=int, default=16)
     parser.add_argument("--model_dim", type=int, default=512)
@@ -250,6 +260,14 @@ def main() -> None:
     schedule = DDPMSchedule(num_train_steps=args.diffusion_steps, device=device)
     vae_loss_fn = VAELoss()
     beta_ramp = KLBetaRamp(beta_start=0.0, beta_end=1e-4, warmup_steps=50_000)
+    prompt_mapper: Optional[SoccerTrackPromptMapper] = None
+    if args.normalize_captions:
+        prompt_mapper = SoccerTrackPromptMapper(
+            use_llm=not args.disable_llm_mapper,
+            model=args.llm_model,
+            api_base_url=args.llm_api_base_url,
+            api_key=os.getenv(args.llm_api_key_env),
+        )
 
     vae_opt = torch.optim.AdamW(vae.parameters(), lr=args.lr_vae, weight_decay=args.weight_decay)
     dit_opt = torch.optim.AdamW(dit.parameters(), lr=args.lr_dit, weight_decay=args.weight_decay)
@@ -265,6 +283,8 @@ def main() -> None:
         for videos, prompts in train_loader:
             videos = videos.to(device=device, dtype=torch.float32)
             bs = videos.size(0)
+            if prompt_mapper is not None:
+                prompts = [prompt_mapper.normalize_prompt(p)[0] for p in prompts]
 
             # Step 1: optimize VAE reconstruction + KL with beta ramp.
             vae_opt.zero_grad(set_to_none=True)
@@ -307,6 +327,7 @@ def main() -> None:
             beta_ramp=beta_ramp,
             step=global_step,
             device=device,
+            prompt_mapper=prompt_mapper,
         )
         train_vae /= max(seen, 1)
         train_diff /= max(seen, 1)

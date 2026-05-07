@@ -5,6 +5,7 @@ This repo contains a compact Wan-style video generation pipeline built with PyTo
 - Causal 3D VAE for video latent compression/reconstruction
 - Diffusion Transformer (DiT) with T5 text conditioning
 - DDPM training objective + classifier-free guidance sampling
+- NLP prompt mapper that normalizes free text into SoccerTrack v2 action vocabulary
 - Train/infer scripts wired for SoccerTrack data workflows
 
 ## Data pipeline (SoccerTrack v2)
@@ -32,9 +33,27 @@ soccertrack_data/
 
 If a `.txt` caption is missing, the scripts fall back to a cleaned filename as the prompt.
 
+### SoccerTrack v2 action vocabulary used by the mapper
+
+The NLP layer maps prompts to this SoccerTrack v2 BAS action set:
+
+- `Pass`
+- `Drive`
+- `Shot`
+- `Header`
+- `High Pass`
+- `Out`
+- `Cross`
+- `Throw In`
+- `Ball Player Block`
+- `Player Successful Tackle`
+- `Free Kick`
+- `Goal`
+
 ## Files
 
 - `wan_model.py`: model components (VAE, T5 wrapper, DiT blocks, DDPM schedule, CFG sampler)
+- `nlp_mapper.py`: maps raw prompts/captions to SoccerTrack v2 actions with LLM + rule fallback
 - `train.py`: training loop with 80/20 train/validation split from `soccertrack_data/`
 - `infer.py`: checkpoint-based sampling; can use explicit prompt or sample prompt from `soccertrack_data/`
 
@@ -43,6 +62,7 @@ If a `.txt` caption is missing, the scripts fall back to a cleaned filename as t
 ```bash
 python train.py \
   --data_dir ./soccertrack_data \
+  --normalize_captions \
   --epochs 10 \
   --batch_size 2
 ```
@@ -52,6 +72,7 @@ Notes:
 - Input videos are resized to the configured resolution and normalized to `[-1, 1]`.
 - Validation runs every epoch on the 20% split.
 - Checkpoints are saved to `checkpoints/`.
+- With `--normalize_captions`, captions are mapped to SoccerTrack actions before T5 encoding.
 
 ## Inference
 
@@ -73,6 +94,26 @@ python infer.py \
   --data_dir ./soccertrack_data \
   --output sample.mp4
 ```
+
+By default, inference runs the prompt mapper. Disable it with:
+
+```bash
+python infer.py \
+  --checkpoint checkpoints/wan_epoch_010.pt \
+  --prompt "counter attack from the right wing" \
+  --disable_prompt_mapper
+```
+
+## LLM API key (not committed)
+
+Prompt mapping can call a hosted LLM API when an API key is set in env.
+
+```bash
+export OPENAI_API_KEY="your_key_here"
+python infer.py --checkpoint checkpoints/wan_epoch_010.pt --prompt "quick pass then a shot"
+```
+
+If no key is present (or the API call fails), mapper falls back to local rule-based matching.
 
 ## Dependencies
 
